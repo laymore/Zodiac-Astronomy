@@ -1,0 +1,22 @@
+export const BRIGHT_STARS = [
+  { name: "Sirius", ra: 6.75, dec: -16.716, mag: -1.46 },
+  { name: "Canopus", ra: 6.399, dec: -52.695, mag: -0.74 },
+  { name: "Rigil Kentaurus", ra: 14.66, dec: -60.83, mag: -0.27 },
+  { name: "Arcturus", ra: 14.26, dec: 19.18, mag: -0.05 },
+  { name: "Vega", ra: 18.61, dec: 38.78, mag: 0.03 },
+  { name: "Capella", ra: 5.28, dec: 45.99, mag: 0.08 },
+  { name: "Rigel", ra: 5.24, dec: -8.2, mag: 0.13 },
+  { name: "Procyon", ra: 7.65, dec: 5.22, mag: 0.34 },
+  { name: "Achernar", ra: 1.62, dec: -57.24, mag: 0.46 },
+  { name: "Betelgeuse", ra: 5.91, dec: 7.4, mag: 0.5 },
+  { name: "Hadar", ra: 14.06, dec: -60.37, mag: 0.61 },
+  { name: "Altair", ra: 19.84, dec: 8.86, mag: 0.76 },
+  { name: "Acrux", ra: 12.44, dec: -63.09, mag: 0.77 },
+  { name: "Aldebaran", ra: 4.59, dec: 16.5, mag: 0.85 },
+  { name: "Antares", ra: 16.48, dec: -26.43, mag: 0.96 },
+  { name: "Spica", ra: 13.41, dec: -11.16, mag: 0.97 },
+  { name: "Pollux", ra: 7.75, dec: 28.02, mag: 1.14 },
+  { name: "Fomalhaut", ra: 22.96, dec: -29.62, mag: 1.16 },
+  { name: "Deneb", ra: 20.69, dec: 45.28, mag: 1.25 },
+  { name: "Mimosa", ra: 12.79, dec: -59.68, mag: 1.25 }
+];

@@ -1,0 +1,6 @@
+{
+  "name": "Zodiac Astronomy AR",
+  "description": "Hệ thống thiên văn học cung hoàng đạo 3D bằng Three.js với hiệu ứng AR, dữ liệu thời gian thực và tử vi cá nhân hóa.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
