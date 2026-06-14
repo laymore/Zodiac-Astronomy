@@ -1,1 +1,82 @@
 @import "tailwindcss";
+
+@layer utilities {
+  .scrollbar-ninja::-webkit-scrollbar {
+    width: 8px;
+  }
+  .scrollbar-ninja::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-ninja::-webkit-scrollbar-thumb {
+    background-color: #8d6e63;
+    border-radius: 10px;
+    border: 2px solid #f4e4bc;
+  }
+  .scrollbar-ninja {
+    scrollbar-width: thin;
+    scrollbar-color: #8d6e63 transparent;
+  }
+
+  .wood-roller {
+    background: linear-gradient(to right, #2d1610 0%, #4e2a1d 20%, #6d3a27 50%, #4e2a1d 80%, #2d1610 100%);
+    box-shadow: inset 0px 4px 6px rgba(0,0,0,0.6), inset 0px -4px 6px rgba(0,0,0,0.6), 0px 5px 15px rgba(0,0,0,0.5);
+  }
+  
+  .roller-cap-left {
+    background: linear-gradient(to bottom, #7f0000 0%, #d32f2f 50%, #7f0000 100%);
+    box-shadow: inset -2px 0 5px rgba(0,0,0,0.5), 0 2px 5px rgba(0,0,0,0.4);
+    border-right: 2px solid #3e2723;
+  }
+
+  .roller-cap-right {
+    background: linear-gradient(to bottom, #7f0000 0%, #d32f2f 50%, #7f0000 100%);
+    box-shadow: inset 2px 0 5px rgba(0,0,0,0.5), 0 2px 5px rgba(0,0,0,0.4);
+    border-left: 2px solid #3e2723;
+  }
+
+  .parchment-bg {
+    background-color: #f4e4bc;
+    background-image: 
+      radial-gradient(#d7ccc8 1px, transparent 1px),
+      radial-gradient(#d7ccc8 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    box-shadow: inset 0px 0px 40px rgba(100, 70, 40, 0.4);
+  }
+
+  .ninja-text {
+    color: #1a1a1a;
+    text-shadow: 0px 0px 1px rgba(0,0,0,0.2);
+  }
+
+  /* Ký tự phong ấn mờ ở background */
+  .mystical-seal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 300px;
+    color: rgba(183, 28, 28, 0.05);
+    font-family: 'Courier New', Courier, monospace;
+    pointer-events: none;
+    z-index: 0;
+    user-select: none;
+  }
+
+  /* Hoạt ảnh mở cuộn (unroll) */
+  @keyframes unroll {
+    from {
+      max-height: 0;
+      opacity: 0;
+    }
+    to {
+      max-height: 85vh;
+      opacity: 1;
+    }
+  }
+
+  .animate-unroll {
+    animation: unroll 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    transform-origin: top center;
+  }
+}

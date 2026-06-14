@@ -1,80 +1,123 @@
-import { getJsonRpcFullnodeUrl, SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
-import { Transaction } from '@mysten/sui/transactions';
+import { MemWal } from '@mysten-incubation/memwal';
 
 // Read config from env
-const SUI_NETWORK = import.meta.env.VITE_SUI_NETWORK || 'testnet';
-const PACKAGE_ID = import.meta.env.VITE_MEMWAL_PACKAGE_ID;
-const ARCHIVE_SHARED_OBJECT_ID = import.meta.env.VITE_ARCHIVE_SHARED_OBJECT_ID;
+const MEMWAL_PRIVATE_KEY = import.meta.env.VITE_MEMWAL_PRIVATE_KEY;
+const MEMWAL_ACCOUNT_ID = import.meta.env.VITE_MEMWAL_ACCOUNT_ID;
 
-// Exporting a singleton client
-export const suiClient = new SuiJsonRpcClient({ 
-  url: getJsonRpcFullnodeUrl(SUI_NETWORK as any),
-  network: SUI_NETWORK as any
-});
+let memwalClient: MemWal | null = null;
+
+if (MEMWAL_PRIVATE_KEY && MEMWAL_ACCOUNT_ID) {
+  memwalClient = MemWal.create({
+    key: MEMWAL_PRIVATE_KEY,
+    accountId: MEMWAL_ACCOUNT_ID,
+  });
+}
 
 export interface ZodiacNote {
   id: string;
   name: string;
   birthDate: string;
   sign: string;
+  message: string;
+  address?: string;
+  likes?: number;
+  isSyncing?: boolean; // UI flag cho rememberAndWait
 }
 
 /**
- * Fetch notes from the Memwal smart contract space
- * In a real scenario, this would query the events or dynamic fields of the shared object.
+ * Fetch notes from the Memwal smart contract space using vector search
  * @param sign Optional sign to filter by
  */
-export async function fetchNotes(sign?: string): Promise<Record<string, ZodiacNote[]>> {
-  if (!PACKAGE_ID || !ARCHIVE_SHARED_OBJECT_ID) {
+export async function fetchNotes(sign: string): Promise<ZodiacNote[]> {
+  if (!memwalClient) {
     console.warn("Memwal configuration is missing. Returning empty notes.");
-    return {};
+    return [];
   }
 
   try {
-    // Example: fetch dynamic fields from the ARCHIVE_SHARED_OBJECT_ID
-    // const dynamicFields = await suiClient.getDynamicFields({ parentId: ARCHIVE_SHARED_OBJECT_ID });
+    console.log(`Fetching messages from Memwal namespace: ${sign}`);
+    const res = await memwalClient.recall({ query: "lời tiên tri", limit: 100, namespace: sign });
     
-    // For now, we simulate fetching the parsed data
-    // In production, you would fetch from a Sui indexer or directly interpret on-chain objects/events.
-    console.log(`Fetching messages from Memwal archive: ${ARCHIVE_SHARED_OBJECT_ID}`);
-    
-    return {};
+    const parsedNotes = res.results.map(r => {
+      try {
+        return JSON.parse(r.text) as ZodiacNote;
+      } catch (e) {
+        return null;
+      }
+    }).filter((n): n is ZodiacNote => n !== null);
+
+    // Deduplicate logic: Keep the version with highest likes, or newest birthDate if likes are equal
+    const dedupMap = new Map<string, ZodiacNote>();
+    for (const note of parsedNotes) {
+      if (!note.id) continue;
+      
+      const existing = dedupMap.get(note.id);
+      if (!existing) {
+        dedupMap.set(note.id, note);
+      } else {
+        const currentLikes = note.likes || 0;
+        const existingLikes = existing.likes || 0;
+        
+        if (currentLikes > existingLikes) {
+          dedupMap.set(note.id, note);
+        } else if (currentLikes === existingLikes) {
+          if (new Date(note.birthDate).getTime() > new Date(existing.birthDate).getTime()) {
+            dedupMap.set(note.id, note);
+          }
+        }
+      }
+    }
+
+    return Array.from(dedupMap.values());
   } catch (error) {
     console.error("Error fetching Memwal notes:", error);
-    return {};
+    return [];
   }
 }
 
 /**
- * Prepare a transaction to write a note to the Memwal smart contract.
- * The front-end can sign and execute this transaction using a wallet adapter.
+ * Write a note to Memwal and wait for it to be indexed.
  */
-export function buildAddNoteTx(note: ZodiacNote): Transaction {
-  const tx = new Transaction();
-
-  if (!PACKAGE_ID || !ARCHIVE_SHARED_OBJECT_ID) {
-    throw new Error("Memwal Package ID or Shared Object ID completely missing.");
+export async function addNote(note: ZodiacNote): Promise<boolean> {
+  if (!memwalClient) {
+    console.error("Memwal configuration missing.");
+    return false;
   }
 
-  // memwal::archive::add_note(archive: &mut Archive, sign: String, name: String, birthDate: String)
-  tx.moveCall({
-    target: `${PACKAGE_ID}::archive::add_note`,
-    arguments: [
-      tx.object(ARCHIVE_SHARED_OBJECT_ID),
-      tx.pure.string(note.sign),
-      tx.pure.string(note.name),
-      tx.pure.string(note.birthDate),
-    ],
-  });
-
-  return tx;
+  try {
+    // Xóa cờ isSyncing trước khi lưu để tiết kiệm byte
+    const { isSyncing, ...noteData } = note;
+    const textToEmbed = JSON.stringify(noteData);
+    
+    // Sử dụng rememberAndWait để đảm bảo được ghi vào Walrus
+    await memwalClient.rememberAndWait(textToEmbed, note.sign, { timeoutMs: 40_000 });
+    return true;
+  } catch (e) {
+    console.error("Error writing note to Memwal:", e);
+    return false;
+  }
 }
 
 /**
- * Fallback / Mock logic for development without a wallet.
- * If Dev mode is enabled, or no wallet is provided, we can simulate or trigger backend writes.
+ * Update likes by re-remembering the note.
  */
-export async function simulateAddNote(note: ZodiacNote): Promise<boolean> {
-  console.log("Simulating writing to Memwal:", note);
-  return new Promise(resolve => setTimeout(() => resolve(true), 1000));
+export async function likeNote(note: ZodiacNote): Promise<boolean> {
+  const updatedNote = { ...note, likes: (note.likes || 0) + 1, birthDate: new Date().toISOString() };
+  return addNote(updatedNote);
+}
+
+/**
+ * Restore an entire namespace from Walrus blockchain.
+ * Useful if the Relayer loses data.
+ */
+export async function restoreArchive(sign: string): Promise<{restored: number, skipped: number, total: number} | null> {
+  if (!memwalClient) return null;
+  
+  try {
+    const result = await memwalClient.restore(sign, 50);
+    return result;
+  } catch (e) {
+    console.error(`Error restoring namespace ${sign}:`, e);
+    return null;
+  }
 }

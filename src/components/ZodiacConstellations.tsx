@@ -2,6 +2,7 @@ import { useMemo, useState, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Line, Html, Trail } from '@react-three/drei';
+import { ProphecyScroll } from './ProphecyScroll';
 
 type Point = [number, number];
 
@@ -97,6 +98,15 @@ function ConstellationGroup({
   const isFocused = focusedSignMode === sign;
   const signNotes = notes && notes[sign] ? notes[sign] : [];
   
+  const topNotes = useMemo(() => {
+    return [...signNotes].sort((a: any, b: any) => {
+      const likeA = a.likes || 0;
+      const likeB = b.likes || 0;
+      if (likeA !== likeB) return likeB - likeA;
+      return new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime();
+    }).slice(0, 7);
+  }, [signNotes]);
+
   const localGroupRef = useRef<THREE.Group>(null);
   
   // Subtle hover animation
@@ -193,13 +203,16 @@ function ConstellationGroup({
       </Html>
       
       {/* Display notes via Html floating near constellation */}
-      {signNotes.map((note: any, idx: number) => (
-         <Html key={note.id} position={[center.x, center.y + 4 + (idx * 0.8), center.z]} center className="pointer-events-none">
-             <div className="text-[10px] md:text-xs text-pink-300 border border-pink-500/30 bg-black/60 px-3 py-1 rounded-full backdrop-blur-md whitespace-nowrap drop-shadow-md">
-               {note.name} <span className="text-gray-400 ml-1">({note.birthDate})</span>
-             </div>
-         </Html>
-      ))}
+      {topNotes.map((note: any, idx: number) => {
+         return (
+           <ProphecyScroll 
+             key={note.id} 
+             note={note} 
+             rank={idx + 1} 
+             position={[center.x, center.y + 4 + (idx * 1.5), center.z]} 
+           />
+         );
+      })}
 
       {/* When focused, render extra 3D stuff */}
       {isFocused && (

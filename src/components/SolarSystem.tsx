@@ -7,6 +7,36 @@ import { ZodiacConstellations } from './ZodiacConstellations';
 import { CelestialGrid } from './CelestialGrid';
 import { SOLAR_TERMS } from '../data/solarTerms';
 import { StarryBackground } from './StarryBackground';
+import { ProphecyScroll } from './ProphecyScroll';
+
+function TopNotesDisplay({ notes, positionOffset = 1.5 }: { notes: any[], positionOffset?: number }) {
+  const topNotes = useMemo(() => {
+    if (!notes || !Array.isArray(notes)) return [];
+    return [...notes].sort((a: any, b: any) => {
+      const likeA = a.likes || 0;
+      const likeB = b.likes || 0;
+      if (likeA !== likeB) return likeB - likeA;
+      return new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime();
+    }).slice(0, 7);
+  }, [notes]);
+
+  if (topNotes.length === 0) return null;
+
+  return (
+    <>
+      {topNotes.map((note: any, idx: number) => {
+         return (
+           <ProphecyScroll 
+             key={note.id} 
+             note={note} 
+             rank={idx + 1} 
+             position={[0, positionOffset + (idx * 1.5), 0]} 
+           />
+         );
+      })}
+    </>
+  );
+}
 
 const earthAtmosphereVertexShader = `
   varying vec3 vNormal;
@@ -613,6 +643,9 @@ export function SolarSystem({ timeNow, onSignSelect, onEarthClick, isEarthFocuse
               }
             }} 
           />
+          {notes && notes["Trái Đất"] && !isEarthFocused && (
+            <TopNotesDisplay notes={notes["Trái Đất"]} positionOffset={2} />
+          )}
         </group>
       </Trail>
 
@@ -647,6 +680,9 @@ export function SolarSystem({ timeNow, onSignSelect, onEarthClick, isEarthFocuse
             >
               <Moon meshRef={{ current: null }} />
               <MoonPhaseIndicator timeNow={timeNow} isEarthFocused={isEarthFocused} />
+              {notes && notes["Mặt Trăng"] && !isEarthFocused && (
+                <TopNotesDisplay notes={notes["Mặt Trăng"]} positionOffset={1} />
+              )}
             </group>
           </Trail>
         </group>

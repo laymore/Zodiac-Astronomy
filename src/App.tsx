@@ -16,7 +16,7 @@ import { CameraAnimator } from './components/CameraAnimator';
 import { ZodiacNotesOverlay } from './components/ZodiacNotesOverlay';
 import { PersonalNatalChart } from './components/PersonalNatalChart';
 import { GalaxyArchiveModal } from './components/GalaxyArchiveModal';
-import { fetchNotes, buildAddNoteTx, simulateAddNote } from './services/memwalService';
+import { fetchNotes, addNote } from './services/memwalService';
 import type { ZodiacNote } from './services/memwalService';
 import { animateCameraBezier } from './lib/cameraTransitions';
 import { ProphecyOrb } from './components/ProphecyOrb';
@@ -26,6 +26,8 @@ import { Volume2, VolumeX } from 'lucide-react';
 import { audioEngine } from './lib/audio';
 
 import { StarryBackground } from './components/StarryBackground';
+import { useCurrentAccount, useConnectWallet, useDisconnectWallet, useWallets } from '@mysten/dapp-kit';
+import { isEnokiWallet } from '@mysten/enoki';
 
 export default function App() {
   const [selectedInfo, setSelectedInfo] = useState<any | null>(null);
@@ -47,30 +49,56 @@ export default function App() {
   
   // zkLogin Wallet Auth State
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [userWallet, setUserWallet] = useState<{ address: string; email: string } | null>(null);
+  const currentAccount = useCurrentAccount();
+  const { mutateAsync: connectWallet } = useConnectWallet();
+  const { mutateAsync: disconnectWallet } = useDisconnectWallet();
+  const wallets = useWallets().filter(isEnokiWallet);
+  const googleWallet = wallets.find(w => w.provider === 'google');
+
+  const userWallet = currentAccount ? { 
+    address: currentAccount.address, 
+    email: 'Google User' 
+  } : null;
+
   const [prophecyTarget, setProphecyTarget] = useState<string | null>(null);
 
-  const handleZkLoginGoogle = () => {
+  const handleZkLoginGoogle = async () => {
+    if (!googleWallet) {
+      alert("Enoki Google Wallet is not configured or registered.");
+      return;
+    }
     setIsLoggingIn(true);
-    // Simulate OAuth & ZKP generation
-    setTimeout(() => {
-      setUserWallet({
-        address: '0x3c9fba08151a8f2bdc1',
-        email: 'anph100387@gmail.com'
-      });
+    try {
+      await connectWallet({ wallet: googleWallet });
+    } catch (e) {
+      console.error(e);
+    } finally {
       setIsLoggingIn(false);
-    }, 2000);
+    }
   };
 
-  const handleLogout = () => {
-    setUserWallet(null);
+  const handleLogout = async () => {
+    try {
+      await disconnectWallet();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const reloadNotesForSign = async (sign: string) => {
+    const fetched = await fetchNotes(sign);
+    setNotes(prev => ({ ...prev, [sign]: fetched }));
   };
 
   useEffect(() => {
     async function loadNotes() {
       setIsLoadingNotes(true);
-      const memwalNotes = await fetchNotes();
-      setNotes(memwalNotes);
+      const allSigns = [...Object.keys(ZODIAC_DATA), "Trái Đất", "Mặt Trăng"];
+      const fetchedNotes: Record<string, ZodiacNote[]> = {};
+      await Promise.all(allSigns.map(async (sign) => {
+        fetchedNotes[sign] = await fetchNotes(sign);
+      }));
+      setNotes(fetchedNotes);
       setIsLoadingNotes(false);
     }
     loadNotes();
@@ -248,13 +276,14 @@ export default function App() {
                 notes={notes[prophecyTarget] || []}
                 isLoading={isLoadingNotes}
                 onProphesy={async (note) => {
-                  const newNote = { ...note, id: Math.random().toString(36).substring(2, 9), sign: prophecyTarget };
+                  const newNote = { ...note, id: Math.random().toString(36).substring(2, 9), sign: prophecyTarget, isSyncing: true };
                   setNotes(prev => ({
                     ...prev,
                     [prophecyTarget]: [...(prev[prophecyTarget] || []), newNote]
                   }));
                   try {
-                    await simulateAddNote(newNote as any);
+                    await addNote(newNote as any);
+                    await reloadNotesForSign(prophecyTarget);
                   } catch (e) {
                     console.error(e);
                   }
@@ -320,7 +349,7 @@ export default function App() {
             notes={notes[focusedSignMode] || []}
             isLoading={isLoadingNotes}
             onAddNote={async (note) => {
-              const newNote = { ...note, id: Math.random().toString(36).substring(2, 9), sign: focusedSignMode };
+              const newNote = { ...note, id: Math.random().toString(36).substring(2, 9), sign: focusedSignMode, isSyncing: true };
               
               // Optimistic update
               setNotes(prev => ({
@@ -331,8 +360,9 @@ export default function App() {
               // In a real application, you would sign the transaction built by buildAddNoteTx with a wallet extension
               // For demonstration and missing wallet, we simulate the backend call:
               try {
-                await simulateAddNote(newNote);
+                await addNote(newNote);
                 console.log("Memory successfully stored to Memwal on Sui!");
+                await reloadNotesForSign(focusedSignMode);
               } catch (error) {
                 console.error("Failed to write memory to Memwal", error);
               }
@@ -381,6 +411,24 @@ export default function App() {
           isLoggingIn={isLoggingIn}
           onLogin={handleZkLoginGoogle}
           onLogout={handleLogout}
+          notesDict={notes}
+          onRefreshNotes={reloadNotesForSign}
+          onAddNote={async (note) => {
+            setNotes(prev => ({
+              ...prev,
+              [note.sign]: [note, ...(prev[note.sign] || [])]
+            }));
+          }}
+          onLikeNote={async (note) => {
+            // Cập nhật state nội bộ
+            setNotes(prev => {
+              const namespaceNotes = prev[note.sign] || [];
+              const updatedNotes = namespaceNotes.map(n => 
+                n.id === note.id ? { ...n, likes: (n.likes || 0) + 1 } : n
+              );
+              return { ...prev, [note.sign]: updatedNotes };
+            });
+          }}
         />
       </div>
 
